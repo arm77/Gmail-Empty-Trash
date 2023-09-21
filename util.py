@@ -1,4 +1,5 @@
 import os
+import re
 
 
 class Util:
@@ -10,9 +11,13 @@ class Util:
         return set(lines)
 
     @staticmethod
-    def contains_any(long_string, str_array):
+    def contains_any(long_string, str_array, regex_str_array):
         long_string = long_string.lower()
         for s in str_array:
             if s.lower() in long_string:
+                return True
+        for s in regex_str_array:
+            # match = re.search(r'word:\w\w\w', str)
+            if re.search(s, long_string):
                 return True
         return False

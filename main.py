@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import os.path
+import sys
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -12,27 +13,40 @@ from util import Util
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://mail.google.com/']
 SENDER_PATTERNS_FILENAME = './sender_patterns.txt'
-BATCH_SIZE = 5
+BATCH_SIZE = 50
 
 
-def get_messages_from_trash(messages_client):
+def get_messages_from_mailbox(messages_client, mailbox):
     results = messages_client.list(userId='me', maxResults=BATCH_SIZE,
-                                   labelIds=['TRASH']).execute()
+                                   labelIds=[mailbox]).execute()
     msgs = results.get('messages', [])
     return list(map(lambda m: messages_client.get(userId='me', id=m['id']).execute(), msgs))
 
 
-def filter_using_patterns(messages, patterns):
+def filter_using_patterns(messages, patterns, regex_patterns):
     result = []
     for msg in messages:
         msg_from = filter(
             lambda hdr: hdr['name'] == 'From', msg['payload']['headers'])
         msg_from = list(msg_from)[0]
 
-        if Util.contains_any(msg_from['value'], patterns):
+        if Util.contains_any(msg_from['value'], patterns, regex_patterns):
             result.append(msg)
+            print('Add : %s' % msg_from['value'])
+        else:
+            print('Skip: %s' % msg_from['value'])
     return result
 
+def dump_from_headers(messages):
+    result = []
+    for msg in messages:
+        msg_from = list(filter(
+            lambda hdr: hdr['name'] == 'From', msg['payload']['headers']))
+        if msg_from: 
+            msg_from_1 = msg_from[0]
+            result.append(msg_from_1['value'])
+    for res in result:
+        print('Spam:', res)
 
 def create_messages_client():
     creds = None
@@ -63,35 +77,50 @@ def read_sender_patterns_file():
         exit()
 
 
-def main():
+def main(dry_run):
     messages_client = create_messages_client()
     sender_patterns = read_sender_patterns_file()
+    regex_sender_patterns = []
+    regex_sender_patterns.append(r'\".*amorando.*\"\ <')  # amorando enclosed by double quotes followed by email address prefix '<'
 
     if not sender_patterns:
         print(SENDER_PATTERNS_FILENAME, 'is empty. Exiting.')
         return
 
     try:
-        trash_messages = get_messages_from_trash(messages_client)
-        filtered_msgs = filter_using_patterns(trash_messages, sender_patterns)
+        trash_messages = get_messages_from_mailbox(messages_client, 'TRASH')
+        num_trash_msgs = len(trash_messages)
+        filtered_msgs = filter_using_patterns(trash_messages, sender_patterns, regex_sender_patterns)
+        num_filtered_msgs = len(filtered_msgs)
 
-        ignored = len(trash_messages) - len(filtered_msgs)
+        ignored = num_trash_msgs - num_filtered_msgs
 
-        print('Messages:', len(filtered_msgs), 'Ignored:', ignored)
+        out_tr = num_trash_msgs
+        out_ig = ignored
+        #out_d1 = out_tr - out_ig
 
-        if not filtered_msgs:
-            return
+        out_sp = 0
+        if spam_messages := get_messages_from_mailbox(messages_client, 'SPAM'):
+            # spam messages not filtered
+            dump_from_headers(spam_messages)
+            out_sp = len(spam_messages)
+            filtered_msgs += spam_messages
 
-        msg_ids = list(map(lambda m: m['id'], filtered_msgs))
+        out_dl = len(filtered_msgs)
+        print(f'Trash+Spam-Skip=Delete: {out_tr}/{out_sp}/{out_ig}/{out_dl}')
 
-        print(msg_ids)
-        messages_client.batchDelete(
-            userId='me', body={'ids': msg_ids}).execute()
-        print('OK ({0} removed)'.format(len(msg_ids)))
+        if not dry_run and filtered_msgs:
+            msg_ids = list(map(lambda m: m['id'], filtered_msgs))
+            print(msg_ids)
+            messages_client.batchDelete(
+                userId='me', body={'ids': msg_ids}).execute()
+            print('OK ({0} removed)'.format(len(msg_ids)))
+        else:
+            print('OK (0 removed - dry-run or nothing to delete)')
 
     except HttpError as error:
         print(f'An error occurred: {error}')
 
 
 if __name__ == '__main__':
-    main()
+    main(len(sys.argv) > 1)

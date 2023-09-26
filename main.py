@@ -15,6 +15,8 @@ SCOPES = ['https://mail.google.com/']
 SENDER_PATTERNS_FILENAME = './sender_patterns.txt'
 BATCH_SIZE = 50
 
+DRY_RUN = 'dry-run'
+IGNORE_FILTER = 'ignore-filter'
 
 def get_messages_from_mailbox(messages_client, mailbox):
     results = messages_client.list(userId='me', maxResults=BATCH_SIZE,
@@ -23,14 +25,14 @@ def get_messages_from_mailbox(messages_client, mailbox):
     return list(map(lambda m: messages_client.get(userId='me', id=m['id']).execute(), msgs))
 
 
-def filter_using_patterns(messages, patterns, regex_patterns):
+def filter_using_patterns(messages, patterns, regex_patterns, ignore_filter):
     result = []
     for msg in messages:
         msg_from = filter(
             lambda hdr: hdr['name'] == 'From', msg['payload']['headers'])
         msg_from = list(msg_from)[0]
 
-        if Util.contains_any(msg_from['value'], patterns, regex_patterns):
+        if ignore_filter or Util.contains_any(msg_from['value'], patterns, regex_patterns):
             result.append(msg)
             print('Add : %s' % msg_from['value'])
         else:
@@ -77,7 +79,7 @@ def read_sender_patterns_file():
         exit()
 
 
-def main(dry_run):
+def main(mode):
     messages_client = create_messages_client()
     sender_patterns = read_sender_patterns_file()
     regex_sender_patterns = []
@@ -90,7 +92,7 @@ def main(dry_run):
     try:
         trash_messages = get_messages_from_mailbox(messages_client, 'TRASH')
         num_trash_msgs = len(trash_messages)
-        filtered_msgs = filter_using_patterns(trash_messages, sender_patterns, regex_sender_patterns)
+        filtered_msgs = filter_using_patterns(trash_messages, sender_patterns, regex_sender_patterns, mode == IGNORE_FILTER)
         num_filtered_msgs = len(filtered_msgs)
 
         ignored = num_trash_msgs - num_filtered_msgs
@@ -109,7 +111,7 @@ def main(dry_run):
         out_dl = len(filtered_msgs)
         print(f'Trash+Spam-Skip=Delete: {out_tr}/{out_sp}/{out_ig}/{out_dl}')
 
-        if not dry_run and filtered_msgs:
+        if filtered_msgs and mode != DRY_RUN:
             msg_ids = list(map(lambda m: m['id'], filtered_msgs))
             print(msg_ids)
             messages_client.batchDelete(
@@ -123,4 +125,8 @@ def main(dry_run):
 
 
 if __name__ == '__main__':
-    main(len(sys.argv) > 1)
+    sys.argv.pop(0)
+    if sys.argv:
+        main(sys.argv[0])
+    else:
+        main(DRY_RUN)

@@ -30,3 +30,8 @@ python main.py
 4. After going through the Google Auth dialog, you'll reach a page which URL is `localhost`, and if it's running on a server, then it won't be accessible (if it's local, then auth should end successfully).
 5. In order to access `localhost`, create an SSH tunnel using `ssh -L 8080:127.0.0.1:8080 USER@REMOTE_HOST -p PORT` (Note: apparently the URL must be `localhost`, or else Google considers it to be insecure and fails).
 6. Reload the page in the browser, and you should see `The authentication flow has completed, you may close this window.`.
+
+### Patterns file
+
+Files named 'sender_patterns.txt' and 'regex_sender_patterns.txt' must exist in the same directory as the Python scripts , even if empty.
+Email addresses are converted to lowercase before being matched to patterns found in these two files.

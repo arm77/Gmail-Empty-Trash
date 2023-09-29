@@ -13,6 +13,7 @@ from util import Util
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://mail.google.com/']
 SENDER_PATTERNS_FILENAME = './sender_patterns.txt'
+REGEX_SENDER_PATTERNS_FILENAME = './regex_sender_patterns.txt'
 BATCH_SIZE = 50
 
 DRY_RUN = 'dry-run'
@@ -69,21 +70,20 @@ def create_messages_client():
     return service.users().messages()
 
 
-def read_sender_patterns_file():
+def read_sender_patterns_file(pattern_file):
     try:
-        return Util.file_lines_to_set(SENDER_PATTERNS_FILENAME)
+        return Util.file_lines_to_set(pattern_file)
 
     except FileNotFoundError as error:
-        print('Error: File {0} must exist'.format(SENDER_PATTERNS_FILENAME))
+        print('Error: File {0} must exist'.format(pattern_file))
         print(error)
         exit()
 
 
 def main(mode):
     messages_client = create_messages_client()
-    sender_patterns = read_sender_patterns_file()
-    regex_sender_patterns = []
-    regex_sender_patterns.append(r'\".*amorando.*\"\ <')  # amorando enclosed by double quotes followed by email address prefix '<'
+    sender_patterns = read_sender_patterns_file(SENDER_PATTERNS_FILENAME)
+    regex_sender_patterns = read_sender_patterns_file(REGEX_SENDER_PATTERNS_FILENAME)
 
     if not sender_patterns:
         print(SENDER_PATTERNS_FILENAME, 'is empty. Exiting.')

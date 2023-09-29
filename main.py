@@ -40,17 +40,6 @@ def filter_using_patterns(messages, patterns, regex_patterns, ignore_filter):
             print('Skip: %s' % msg_from['value'])
     return result
 
-def dump_from_headers(messages):
-    result = []
-    for msg in messages:
-        msg_from = list(filter(
-            lambda hdr: hdr['name'] == 'From', msg['payload']['headers']))
-        if msg_from: 
-            msg_from_1 = msg_from[0]
-            result.append(msg_from_1['value'])
-    for res in result:
-        print('Spam:', res)
-
 def create_messages_client():
     creds = None
 
@@ -92,31 +81,28 @@ def main(mode):
     try:
         trash_messages = get_messages_from_mailbox(messages_client, 'TRASH')
         num_trash_msgs = len(trash_messages)
-        filtered_msgs = filter_using_patterns(trash_messages, sender_patterns, regex_sender_patterns, mode == IGNORE_FILTER)
+        print('--- Trash ---')
+        filtered_msgs = filter_using_patterns(trash_messages,
+            sender_patterns, regex_sender_patterns, mode == IGNORE_FILTER)
         num_filtered_msgs = len(filtered_msgs)
 
-        ignored = num_trash_msgs - num_filtered_msgs
-
-        out_tr = num_trash_msgs
-        out_ig = ignored
-        #out_d1 = out_tr - out_ig
-
-        out_sp = 0
+        num_spam_messages = 0
         if spam_messages := get_messages_from_mailbox(messages_client, 'SPAM'):
-            # spam messages not filtered
-            dump_from_headers(spam_messages)
-            out_sp = len(spam_messages)
+            print('--- Spam ---')
+            spam_messages = filter_using_patterns(spam_messages,
+                sender_patterns, regex_sender_patterns, True)
+            num_spam_messages = len(spam_messages)
             filtered_msgs += spam_messages
 
-        out_dl = len(filtered_msgs)
-        print(f'Trash+Spam-Skip=Delete: {out_tr}/{out_sp}/{out_ig}/{out_dl}')
+        print(f'Trash+Spam-Skip=Delete:' f'{num_trash_msgs}/{num_spam_messages}/'
+            f'{num_trash_msgs - num_filtered_msgs}/{len(filtered_msgs)}')
 
         if filtered_msgs and mode != DRY_RUN:
             msg_ids = list(map(lambda m: m['id'], filtered_msgs))
             print(msg_ids)
             messages_client.batchDelete(
                 userId='me', body={'ids': msg_ids}).execute()
-            print('OK ({0} removed)'.format(len(msg_ids)))
+            print(f'OK ({len(msg_ids)} removed)')
         else:
             print('OK (0 removed - dry-run or nothing to delete)')
 

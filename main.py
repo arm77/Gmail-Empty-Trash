@@ -30,7 +30,7 @@ def filter_using_patterns(messages, patterns, regex_patterns, ignore_filter):
     result = []
     for msg in messages:
         msg_from = filter(
-            lambda hdr: hdr['name'] == 'From', msg['payload']['headers'])
+            lambda hdr: hdr['name'].lower() == 'from', msg['payload']['headers'])
         msg_from = list(msg_from)[0]
 
         if ignore_filter or Util.contains_any(msg_from['value'], patterns, regex_patterns):

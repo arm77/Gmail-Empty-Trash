@@ -12,12 +12,12 @@ class Util:
 
     @staticmethod
     def contains_any(long_string, str_array, regex_str_array):
-        long_string = long_string.lower()
+        long_string_lower = long_string.lower()
         for s in str_array:
-            if s.lower() in long_string:
+            if s.lower() in long_string_lower:
                 return True
         for s in regex_str_array:
             # match = re.search(r'word:\w\w\w', str)
-            if re.search(s, long_string):
+            if re.search(s, long_string, re.IGNORECASE):
                 return True
         return False

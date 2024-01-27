@@ -16,8 +16,10 @@ SENDER_PATTERNS_FILENAME = './sender_patterns.txt'
 REGEX_SENDER_PATTERNS_FILENAME = './regex_sender_patterns.txt'
 BATCH_SIZE = 50
 
+#NORMAL = 'normal'  # default behavior
 DRY_RUN = 'dry-run'
 IGNORE_FILTER = 'ignore-filter'
+INCLUDE_INBOX = 'include-inbox'
 
 def get_messages_from_mailbox(messages_client, mailbox):
     results = messages_client.list(userId='me', maxResults=BATCH_SIZE,
@@ -69,7 +71,7 @@ def read_sender_patterns_file(pattern_file):
         exit()
 
 
-def main(mode):
+def main(mode_dry_run=True, mode_ignore_filter=False, mode_include_inbox=False):
     messages_client = create_messages_client()
     sender_patterns = read_sender_patterns_file(SENDER_PATTERNS_FILENAME)
     regex_sender_patterns = read_sender_patterns_file(REGEX_SENDER_PATTERNS_FILENAME)
@@ -79,25 +81,35 @@ def main(mode):
         return
 
     try:
-        trash_messages = get_messages_from_mailbox(messages_client, 'TRASH')
-        num_trash_msgs = len(trash_messages)
-        print('--- Trash ---')
-        filtered_msgs = filter_using_patterns(trash_messages,
-            sender_patterns, regex_sender_patterns, mode == IGNORE_FILTER)
-        num_filtered_msgs = len(filtered_msgs)
+        num_filtered_msgs = num_trash_msgs = num_spam_messages = num_inbox_messages = 0
+        filtered_msgs = []
+        if trash_messages := get_messages_from_mailbox(messages_client, 'TRASH'):
+            num_trash_msgs = len(trash_messages)
+            print('--- Trash ---')
+            filtered_msgs = filter_using_patterns(trash_messages,
+                sender_patterns, regex_sender_patterns, mode_ignore_filter)
+            num_filtered_msgs = len(filtered_msgs)
 
-        num_spam_messages = 0
         if spam_messages := get_messages_from_mailbox(messages_client, 'SPAM'):
             print('--- Spam ---')
             spam_messages = filter_using_patterns(spam_messages,
-                sender_patterns, regex_sender_patterns, True)
+                sender_patterns, regex_sender_patterns, mode_ignore_filter)
             num_spam_messages = len(spam_messages)
             filtered_msgs += spam_messages
 
-        print(f'Trash+Spam-Skip=Delete:' f'{num_trash_msgs}/{num_spam_messages}/'
+        if mode_include_inbox:
+            if inbox_messages := get_messages_from_mailbox(messages_client, 'INBOX'):
+                print('--- INBOX ---')
+                inbox_messages = filter_using_patterns(inbox_messages,
+                    sender_patterns, regex_sender_patterns, mode_ignore_filter)
+                num_inbox_messages = len(inbox_messages)
+                filtered_msgs += inbox_messages
+
+        print(f'Trash+Spam+Inbox-Skip=Delete:' f'{num_trash_msgs}/{num_spam_messages}/'
+            f'{num_inbox_messages}/'
             f'{num_trash_msgs - num_filtered_msgs}/{len(filtered_msgs)}')
 
-        if filtered_msgs and mode != DRY_RUN:
+        if filtered_msgs and not mode_dry_run:
             msg_ids = list(map(lambda m: m['id'], filtered_msgs))
             print(msg_ids)
             messages_client.batchDelete(
@@ -113,6 +125,8 @@ def main(mode):
 if __name__ == '__main__':
     sys.argv.pop(0)
     if sys.argv:
-        main(sys.argv[0])
+        main(any(x==DRY_RUN for x in sys.argv),
+             any(x==IGNORE_FILTER for x in sys.argv),
+             any(x==INCLUDE_INBOX for x in sys.argv))
     else:
-        main(DRY_RUN)
+        main()

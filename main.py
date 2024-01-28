@@ -93,7 +93,7 @@ def main(mode_dry_run=True, mode_ignore_filter=False, mode_include_inbox=False):
         if spam_messages := get_messages_from_mailbox(messages_client, 'SPAM'):
             print('--- Spam ---')
             spam_messages = filter_using_patterns(spam_messages,
-                sender_patterns, regex_sender_patterns, mode_ignore_filter)
+                sender_patterns, regex_sender_patterns, True)
             num_spam_messages = len(spam_messages)
             filtered_msgs += spam_messages
 

@@ -28,7 +28,7 @@ def get_messages_from_mailbox(messages_client, mailbox):
     return list(map(lambda m: messages_client.get(userId='me', id=m['id']).execute(), msgs))
 
 
-def filter_using_patterns(messages, patterns, regex_patterns, ignore_filter):
+def filter_using_patterns(messages, patterns, regex_patterns, ignore_filter, prefix = ''):
     result = []
     for msg in messages:
         msg_from = filter(
@@ -37,9 +37,9 @@ def filter_using_patterns(messages, patterns, regex_patterns, ignore_filter):
 
         if ignore_filter or Util.contains_any(msg_from['value'], patterns, regex_patterns):
             result.append(msg)
-            print('Add : %s' % msg_from['value'])
+            print(f'{prefix} Add : %s' % msg_from['value'])
         else:
-            print('Skip: %s' % msg_from['value'])
+            print(f'{prefix} Skip: %s' % msg_from['value'])
     return result
 
 def create_messages_client():
@@ -81,42 +81,43 @@ def main(mode_dry_run=True, mode_ignore_filter=False, mode_include_inbox=False):
         return
 
     try:
-        num_filtered_msgs = num_trash_msgs = num_spam_messages = num_inbox_messages = 0
+        num_removed_msgs = num_filtered_msgs = num_trash_msgs = num_spam_messages = num_inbox_messages = 0
         filtered_msgs = []
         if trash_messages := get_messages_from_mailbox(messages_client, 'TRASH'):
             num_trash_msgs = len(trash_messages)
-            print('--- Trash ---')
-            filtered_msgs = filter_using_patterns(trash_messages,
-                sender_patterns, regex_sender_patterns, mode_ignore_filter)
-            num_filtered_msgs = len(filtered_msgs)
+
+            if num_trash_msgs:
+                filtered_msgs = filter_using_patterns(trash_messages,
+                    sender_patterns, regex_sender_patterns, mode_ignore_filter, 'Trash')
+                num_filtered_msgs = len(filtered_msgs)
 
         if spam_messages := get_messages_from_mailbox(messages_client, 'SPAM'):
-            print('--- Spam ---')
-            spam_messages = filter_using_patterns(spam_messages,
-                sender_patterns, regex_sender_patterns, True)
             num_spam_messages = len(spam_messages)
-            filtered_msgs += spam_messages
+            if num_spam_messages:
+                spam_messages = filter_using_patterns(spam_messages,
+                    sender_patterns, regex_sender_patterns, True, 'Spam')
+                filtered_msgs += spam_messages
 
         if mode_include_inbox:
-            if inbox_messages := get_messages_from_mailbox(messages_client, 'INBOX'):
-                print('--- INBOX ---')
+            inbox_messages = get_messages_from_mailbox(messages_client, 'INBOX')
+            num_inbox_messages = len(inbox_messages)
+            if num_inbox_messages:
                 inbox_messages = filter_using_patterns(inbox_messages,
-                    sender_patterns, regex_sender_patterns, mode_ignore_filter)
-                num_inbox_messages = len(inbox_messages)
+                    sender_patterns, regex_sender_patterns, mode_ignore_filter, 'Inbox')
                 filtered_msgs += inbox_messages
 
-        print(f'Trash+Spam+Inbox-Skip=Delete:' f'{num_trash_msgs}/{num_spam_messages}/'
-            f'{num_inbox_messages}/'
-            f'{num_trash_msgs - num_filtered_msgs}/{len(filtered_msgs)}')
-
-        if filtered_msgs and not mode_dry_run:
+        if not mode_dry_run and filtered_msgs:
             msg_ids = list(map(lambda m: m['id'], filtered_msgs))
-            print(msg_ids)
+            num_removed_msgs = len(msg_ids)
             messages_client.batchDelete(
                 userId='me', body={'ids': msg_ids}).execute()
-            print(f'OK ({len(msg_ids)} removed)')
-        else:
-            print('OK (0 removed - dry-run or nothing to delete)')
+
+        if num_removed_msgs:
+            print(f'Trash+Spam+Inbox-Skip=Delete:' f'{num_trash_msgs}/{num_spam_messages}/'
+                f'{num_inbox_messages}/'
+                f'{num_trash_msgs - num_filtered_msgs}/{len(filtered_msgs)}')
+        print(f'OK ({num_removed_msgs} {"dry-run" if mode_dry_run else "removed"})')
+
 
     except HttpError as error:
         print(f'An error occurred: {error}')

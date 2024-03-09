@@ -35,3 +35,5 @@ python main.py
 
 Files named 'sender_patterns.txt' and 'regex_sender_patterns.txt' must exist in the same directory as the Python scripts , even if empty.
 From: headers are converted to lowercase before being matched to patterns found in these two files.
+
+### test

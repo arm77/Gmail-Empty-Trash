@@ -3,6 +3,9 @@ from __future__ import print_function
 import os.path
 import sys
 
+# add timeout for token refresh when calling run_local_server
+import signal
+
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -21,6 +24,7 @@ DRY_RUN = 'dry-run'
 IGNORE_FILTER = 'ignore-filter'
 INCLUDE_INBOX = 'include-inbox'
 
+LOCAL_SERVER_TIMEOUT_SEC = 60
 
 def get_messages_from_mailbox(messages_client, mailbox):
     results = messages_client.list(userId='me', maxResults=BATCH_SIZE,
@@ -43,6 +47,9 @@ def filter_using_patterns(messages, patterns, regex_patterns, ignore_filter, pre
             print(f'{prefix} Skip: %s' % msg_from['value'])
     return result
 
+def raise_():
+    raise Exception('flow.local_server timeout. Exiting')
+
 def create_messages_client():
     creds = None
 
@@ -54,7 +61,15 @@ def create_messages_client():
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
                 'credentials.json', SCOPES)
-            creds = flow.run_local_server(port=8080, open_browser=False, access_type='offline')
+
+            signal.signal(signal.SIGALRM, lambda sigum, frame: raise_() )
+            signal.alarm(LOCAL_SERVER_TIMEOUT_SEC)
+            try:
+                creds = flow.run_local_server(port=8080, open_browser=False, access_type='offline')
+            except Exception as exc:
+                print(exc)
+                exit(-1)
+
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
 

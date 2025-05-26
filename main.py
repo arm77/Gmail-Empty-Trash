@@ -131,6 +131,9 @@ def main(mode_dry_run=True, mode_ignore_filter=False, mode_include_inbox=False):
 
 
 if __name__ == '__main__':
+    if 'help' in sys.argv or '--help' in sys.argv or '-h' in sys.argv:
+        print(f'USAGE: gmail-empty-trash {NORMAL}|[{DRY_RUN}] {IGNORE_FILTER} {INCLUDE_INBOX}')
+        exit(0)
     sys.argv.pop(0)
     if sys.argv:
         main(any(x==DRY_RUN for x in sys.argv),

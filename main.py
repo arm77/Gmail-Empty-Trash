@@ -23,6 +23,7 @@ NORMAL = 'normal'  # default behavior
 DRY_RUN = 'dry-run'
 IGNORE_FILTER = 'ignore-filter'
 INCLUDE_INBOX = 'include-inbox'
+ALL_OPTIONS = [NORMAL, DRY_RUN, IGNORE_FILTER, INCLUDE_INBOX]
 
 LOCAL_SERVER_TIMEOUT_SEC = 60
 
@@ -131,7 +132,9 @@ def main(mode_dry_run=True, mode_ignore_filter=False, mode_include_inbox=False):
 
 
 if __name__ == '__main__':
-    if 'help' in sys.argv or '--help' in sys.argv or '-h' in sys.argv:
+    help_option = 'help' in sys.argv or '--help' in sys.argv or '-h' in sys.argv
+    illegal_option = any([x not in ALL_OPTIONS for x in sys.argv[1:]])
+    if help_option or illegal_option:
         print(f'USAGE: gmail-empty-trash {NORMAL}|[{DRY_RUN}] {IGNORE_FILTER} {INCLUDE_INBOX}')
         exit(0)
     sys.argv.pop(0)
